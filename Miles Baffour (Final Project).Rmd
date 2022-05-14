@@ -1,0 +1,196 @@
+---
+title: "Miles Baffour(Final Project)"
+author: "Miles Baffour"
+date: "5/13/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(modelr)
+library(e1071)
+
+```
+
+## Data Source
+This project uses data from fivethirtyeight’s “guns-data” repository. The repository contains already cleaned and parsed data from the CDC's Multiple Cause of Death data file. The dataset includes information on 100,000+ victims of gun-related fatalities  from the years 2012-2014 in the United States. The gun-related deaths of Non-U.S residents are excluded from the data set as per CDC's practice. The police column, which states whether a victim was a police officer or not, is derived from Federal Bureau of Investigation's(FBI) Uniform Crime Reporting publications (UCR). The UCR includes the killings of federal, state, and local law enforcement officers who were sworn officers, normally carried a gun and badge, and had full arrest powers.
+
+Something important to note is that the CDC uses codes to identify an individual's Hispanic ethnicity. The codes are stated below
+100-199 ... Non – Hispanic
+200-209 … Spaniard
+210-219 ... Mexican
+260-269 ... Puerto Rican
+270-274 ... Cuban
+275-279 … Dominican
+220 … Central and South American
+221-230 ... Central American
+231-249 … South American
+250-259 … Latin American
+280-299 ... Other Hispanic
+996-999 ... Unknown
+
+
+```{r}
+guns<-read_csv("https://raw.githubusercontent.com/fivethirtyeight/guns-data/master/full_data.csv") #importing the data from FiveThirtyEight's github guns-data repository
+
+guns<- guns%>%filter(!is.na(age)) # Filtering the data so that there are no explicitly missing values in the age column
+guns
+```
+
+## Introduction 
+Using the information from the data set, I wanted to answer 6 questions: 
+- What is the relationship between the victim's race and the intent behind their death?
+- 2.How many deaths are there for each race?
+- 3.What is the most common intent behind the gun-related deaths of the women in the dataset? 
+- 4.What is the average age of both men and women in the data set?
+- 5.Can one accurately predict a victim’s race given the age of the victim and the intent behind their death?
+- 6.Does the time of year have any relation to the intent behind a victim’s death? 
+
+When answering these questions, I used the following libraries: tidyverse, ggplot2, modelr, and e1071 (includes the svm function). These libraries were used to assist me in the process of visualizing the data, creating predictive models of the data, and the overall process of exploring the data. 
+
+
+
+## Data Ethics
+
+### Potential Ethical Benefits 
+
+*Human Understanding*
+
+This project may help shed light on the underlying issues surrounding the U.S's gun mortality rate. Typically when one thinks about gun-mortality, they understandably immediately think of the deaths caused by homicide. However it is also important to understand that a significant number of gun-related deaths are caused by suicides and accidents.
+
+
+
+## Potential Ethical Harms
+
+*Data Relevance* 
+
+The data source this project uses contains information from 2012 through 2014. Although gun-mortality is still a massive issue that the U.S faces in the present (2022). This raises the question as to whether the data that is used for this project is still useful and relevant to the issue of gun-mortality in the current year.
+
+
+## Questions 
+
+### Q1. What is the relationship between the victim's race and the intent behind their death?
+
+```{r}
+guns%>%group_by(intent,race)%>%summarise(indiviudals_per_race=n()) #Creating a table that shows the number of victims of each race for each intent
+```
+
+```{r}
+ggplot(guns)+geom_bar(aes(x=intent,fill=race)) #Creating a bar chart that shows the number of victims of each race per intent
+```
+
+
+As shown in the bar chart above, suicides make up the majority of deaths in the data set. White victims make up the majority of suicides (55,367 deaths). Homicides are the second most common cause of death in the data set, and Black victims account for the majority of homicide deaths (19,509 deaths). 
+### Q2. How many deaths per race? 
+
+```{r}
+guns_race_deaths<- guns %>% group_by(race)%>% summarize(num_deaths= n()) #Creating a table that shows the number of gun-related deaths per race
+guns_race_deaths
+
+```
+
+
+
+```{r}
+race_gun_deaths<- ggplot(guns_race_deaths) + geom_col(mapping=aes(x=race, y = num_deaths)) #Creating a bar chart to display the information  
+race_gun_deaths
+
+ggplot(guns_race_deaths, aes(x="", y=num_deaths, fill=race)) +   #Creating a pie chart to display the information  
+  geom_bar(stat="identity", width=1) +
+  coord_polar("y", start=0)+theme_void() +
+  labs(title = "Number of deaths per race")
+```
+As displayed in the pie chart above, white victims account for the majority of overall deaths in the data set (65%).Black victims make up 23% of deaths. Hispanic victims make up 8.9% of the total deaths. Asian/Pacific islander victims account for 1.3% of total deaths. Native American/Native Alaskan victims account for .9% of the total victims in the dataset.
+
+### Q3.What is the most common intent behind the gun-related deaths of women?
+
+```{r}
+gun_women_deaths<-guns%>%filter(sex=="F")%>% group_by(intent)%>% summarise(num_women_per_intent=n())  #Creating a table that includes the number of woman victims per intent
+gun_women_deaths 
+
+ggplot(gun_women_deaths)+geom_col(aes(x=intent,y=num_women_per_intent))+ labs(title = "Number of Woman victims per intent", 
+      y = "Number of Woman victims",
+      x = "Intent")
+#Creating a bar-chart that uncludes the number of woman victims per intent
+```
+
+The most common intent behind the gun-related deaths of women is suicide. 60% of the female victims in the data set's cause of death is suicide.
+
+
+
+### Q4. What is the average age of deaths for both males and females in the data set?
+
+*Average age for Men*
+```{r}
+guns%>%filter(sex=="M")%>% filter(!is.na(age))%>%summarize(avg_age = mean(age)) #First filtered to include only men and then calculate the mean age
+```
+Average age of Male victims in the data set 43.8 years old.
+
+*Average age for Women*
+
+```{r}
+guns%>%filter(sex=="F")%>% filter(!is.na(age))%>%summarize(avg_age = mean(age)) #First filtered to include only Women and then calculate the mean age
+```
+The average age of female victims in the dataset is 43.69
+
+
+
+```{r}
+guns%>%filter(!is.na(age))%>%ggplot+geom_density(aes(x=age, color = sex,fill = sex),alpha=.4)+labs(title = "Age distribution for men and women")+geom_vline(xintercept = mean(guns$age,na.rm=TRUE)) #Used the geom_density function to create a smooth density curve, separated sex by color, and use geom_vline function to show the average age for both sexes.
+
+guns%>%filter(!is.na(age))%>%summarize(avg_all_age=mean(age)) #Calculating the average age of victims (both male and female) in the data set
+```
+
+As displayed in the density curve above, there are generally more younger male victims than younger female victims in the dataset. There are also more women around the ages 45-60 than men of the same age in the dataset.
+
+
+### Q5. Can we accurately predict the victim's race given the age of the victim and intent behind their death?
+
+*make intent column into a factor type*
+```{r}
+guns1<-guns%>%mutate(intent=factor(intent)) #Making the intent column into a factor type (for model)
+guns1
+```
+
+```{r}
+guns_mod<-svm(intent~age+race,kernel = "linear", data = guns1) # Using svm function to create a model that predicts intent using race and age
+guns_mod
+```
+
+
+```{r}
+grid_pred<-guns1%>%data_grid(age,race)%>%filter(!is.na(age))%>%add_predictions(guns_mod) #Creating a data grid that matched every possible age to race combination and displays the predicted race for each combination using the linear model created. 
+grid_pred
+```
+
+Although I was unable to add the predictions to my original data set, one can conclude that this model is not very accurate. For every race at any given age, it returns the overall most common cause of death for each race, regardless of age. For example, for every individual in the data grid whose race is black, regardless of the age of the victim, the model always predicts that the cause of death was a homicide.
+
+### Q6. What are the top 5 months in which the most deaths occured? What is the racial breakdown of the victims whose deaths occured on these months?
+
+```{r}
+top_5<-guns1%>%count(month,intent)%>%arrange(desc(n))%>%head(5) #Used count function and arrange function to display the first 5 months with the most deaths and the intent behind those deaths.
+top_5
+```
+
+
+```{r}
+top_5_victims<-semi_join(guns1,top_5) #Semi joining the original dataset with the top 5 data set to see the information of the victims whose deaths occurred on those months.
+top_5_victims
+
+top_5_victims%>%group_by(race)%>%summarize(num_deaths = n()) #Using group_by and summarize function to find the number of victims per race in the top 5 months
+```
+
+```{r}
+ggplot(top_5_victims)+geom_bar(mapping=aes(x=race)) # creating a bar chart to display the number of times each race appears in the top 5 victims data set
+```
+
+The top 5 months with the most deaths are July, May, April, August, June. White victims make up the majority (87%) of deaths in these months.
+
+### Conclusion 
+
+Something that I have learned while doing this project is that while homicides do make up a large portion of gun-related deaths, suicides and accidental deaths also make up a significant portion of gun-related deaths of any race in the United States. Although this data is from 2012-2014, it is apparent that the issue of gun mortality is still very relevant today. I believe that by analyzing the data of victims of gun fatalities, we may help people gain a better understanding of the underlying issues that contribute to the U.S'gun-mortality rate. The CDC still records and updates data in its 'Multiple Cause Of Death' data file, so there are plenty of opportunities for potential future work with data related to gun fatalities.
